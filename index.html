@@ -209,11 +209,9 @@ footer{color:#7f8da2;text-align:center;font-size:11px;margin-top:22px}
     if (!key) return setKeyStatus("Спочатку вставте Gemini API key.", "warn");
     if (!imageDataUrl) return setStatus("Спочатку додайте фото.", "warn");
 
-    // Current Gemini REST API expects the API key in x-goog-api-key.
-    // Note: new AQ.* authorization tokens are not interchangeable with legacy API keys.
-    if (key.startsWith("AQ.")) {
-      return setKeyStatus("Це схоже на AQ.* authorization token. Для цього однофайлового режиму потрібен Gemini API key, сумісний з x-goog-api-key (зазвичай AIza...).", "bad");
-    }
+    // Google AI Studio now creates new authorization API keys (AQ.*).
+    // AQ.* keys are valid Gemini API keys for supported Gemini API requests.
+    // Do NOT reject the new format based on its prefix.
 
     analyzeBtn.disabled = true;
     progress.classList.add("show");

@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="description" content="Doc2Sheet — фото документа → таблиця → Excel">
+<title>Doc2Sheet Private</title>
+<style>
+:root{
+  --bg:#07101f;--card:#101b2d;--card2:#16243a;--text:#f7f9fc;--muted:#aab7ca;
+  --line:#293852;--accent:#6ea8ff;--accent2:#8b7cff;--ok:#54d69b;--warn:#ffd166;--bad:#ff7183;
+  --radius:22px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:
+radial-gradient(circle at 20% 0%,#172a4b 0,transparent 36%),var(--bg);color:var(--text)}
+body{padding:18px 14px 40px}
+.app{max-width:980px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:4px 0 20px}
+.brand{display:flex;gap:12px;align-items:center}.logo{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;
+background:linear-gradient(135deg,#6ea8ff,#8b7cff);font-size:24px;box-shadow:0 10px 30px #0006}
+h1{font-size:22px;margin:0}.sub{font-size:12px;color:var(--muted);margin-top:2px}
+.card{background:#101b2ddd;border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:0 16px 40px #0003}
+label{display:block;font-weight:700;margin-bottom:8px}
+input,button,textarea{font:inherit}
+input[type=password],input[type=text]{width:100%;padding:14px 15px;border:1px solid var(--line);background:#0b1424;color:var(--text);border-radius:14px;outline:none}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px #6ea8ff22}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1}
+button{border:0;border-radius:14px;padding:13px 16px;font-weight:800;cursor:pointer;background:var(--card2);color:var(--text)}
+button.primary{background:linear-gradient(135deg,#6ea8ff,#8b7cff);color:white}
+button.danger{background:#3a1821;color:#ffb7c0}
+button:disabled{opacity:.45;cursor:not-allowed}
+.small{font-size:12px;color:var(--muted);line-height:1.5}
+.status{margin-top:12px;padding:12px 14px;border-radius:14px;background:#0b1424;border:1px solid var(--line);display:none}
+.status.show{display:block}.status.ok{border-color:#2d7e60}.status.warn{border-color:#8d7529}.status.bad{border-color:#873344}
+.drop{border:1.5px dashed #466080;border-radius:18px;padding:22px;text-align:center;background:#0b142488}
+.drop strong{display:block;font-size:18px;margin-bottom:5px}
+.preview-wrap{display:none;margin-top:14px}.preview-wrap.show{display:block}
+.preview{width:100%;max-height:420px;object-fit:contain;border-radius:16px;background:#050a12;border:1px solid var(--line)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.actions button{flex:1;min-width:150px}
+.progress{height:8px;border-radius:99px;background:#0a1220;overflow:hidden;margin-top:12px;display:none}
+.progress.show{display:block}.bar{height:100%;width:0;background:linear-gradient(90deg,#6ea8ff,#8b7cff);transition:width .3s}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:16px;margin-top:12px}
+table{border-collapse:collapse;width:100%;min-width:620px;background:#0b1424}
+th,td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:8px}
+th{background:#16243a;text-align:left;position:sticky;top:0}
+td input{padding:9px 10px;border-radius:10px;background:#09111e;border-color:#26364e}
+.low{background:#3a2f10!important;border-color:#8d7529!important}
+.badcell{background:#3a1821!important;border-color:#873344!important}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;background:#18263b;color:#c9d5e7;font-size:12px;margin:3px}
+.hidden{display:none!important}
+.settings-note{margin-top:9px}
+footer{color:#7f8da2;text-align:center;font-size:11px;margin-top:22px}
+@media(max-width:600px){
+ body{padding:12px 10px 30px}.card{padding:14px;border-radius:18px}
+ header{margin-bottom:12px}.actions button{min-width:100%;}.logo{width:42px;height:42px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand">
+    <div class="logo">📄</div>
+    <div><h1>Doc2Sheet</h1><div class="sub">Фото → текст → таблиця → Excel</div></div>
+  </div>
+  <button id="clearAll" class="danger" type="button">Очистити</button>
+</header>
+
+<section class="card">
+  <label for="apiKey">🔑 Gemini API key</label>
+  <div class="row">
+    <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Вставте ключ лише для цієї сесії">
+    <button id="toggleKey" type="button">Показати</button>
+  </div>
+  <div class="small settings-note">
+    Ключ не записується в localStorage, cookie або IndexedDB. Він живе лише в памʼяті цієї вкладки.
+    Для особистого використання це зручно, але ключ у браузері технічно можна побачити через DevTools.
+  </div>
+  <div id="keyStatus" class="status"></div>
+</section>
+
+<section class="card">
+  <div class="drop">
+    <strong>📷 Фото документа</strong>
+    <div class="small">Друкований або рукописний український текст. Таблицю можна сфотографувати під кутом — модель спробує відновити структуру.</div>
+    <div class="actions">
+      <button id="cameraBtn" class="primary" type="button">📷 Сфотографувати</button>
+      <button id="galleryBtn" type="button">🖼 Обрати фото</button>
+    </div>
+    <input id="cameraInput" class="hidden" type="file" accept="image/*" capture="environment">
+    <input id="galleryInput" class="hidden" type="file" accept="image/*">
+  </div>
+
+  <div id="previewWrap" class="preview-wrap">
+    <img id="preview" class="preview" alt="Попередній перегляд документа">
+    <div class="actions">
+      <button id="analyzeBtn" class="primary" type="button">🤖 Розпізнати</button>
+      <button id="removePhoto" class="danger" type="button">Видалити фото</button>
+    </div>
+    <div id="progress" class="progress"><div id="bar" class="bar"></div></div>
+    <div id="status" class="status"></div>
+  </div>
+</section>
+
+<section id="resultCard" class="card hidden">
+  <div id="resultMeta"></div>
+  <div id="warnings"></div>
+  <div class="table-wrap"><table id="dataTable"></table></div>
+  <div class="actions">
+    <button id="addRow" type="button">＋ Рядок</button>
+    <button id="addCol" type="button">＋ Колонка</button>
+    <button id="exportXls" class="primary" type="button">⬇️ Excel</button>
+    <button id="exportCsv" type="button">⬇️ CSV</button>
+  </div>
+  <div class="small" style="margin-top:10px">
+    Після експорту можна натиснути «Очистити». Застосунок не має серверної історії документів.
+  </div>
+</section>
+
+<footer>Doc2Sheet Private · без акаунта · без історії · дані сесії очищуються вручну або після завершення роботи</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // One-file client. No framework, no npm, no CDN.
+  // The Gemini key is intentionally NOT persisted.
+  const MODEL = "gemini-3.6-flash";
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+  const $ = (id) => document.getElementById(id);
+  const apiKey = $("apiKey"), preview = $("preview"), previewWrap = $("previewWrap");
+  const cameraInput = $("cameraInput"), galleryInput = $("galleryInput");
+  const analyzeBtn = $("analyzeBtn"), status = $("status"), progress = $("progress"), bar = $("bar");
+  const resultCard = $("resultCard"), dataTable = $("dataTable"), resultMeta = $("resultMeta"), warnings = $("warnings");
+
+  let imageDataUrl = null;
+  let tableData = { columns: [], rows: [], confidence: 0, warnings: [] };
+
+  $("cameraBtn").onclick = () => cameraInput.click();
+  $("galleryBtn").onclick = () => galleryInput.click();
+  cameraInput.onchange = e => loadImage(e.target.files?.[0]);
+  galleryInput.onchange = e => loadImage(e.target.files?.[0]);
+
+  $("toggleKey").onclick = () => {
+    apiKey.type = apiKey.type === "password" ? "text" : "password";
+    $("toggleKey").textContent = apiKey.type === "password" ? "Показати" : "Сховати";
+  };
+
+  $("removePhoto").onclick = clearPhoto;
+  $("clearAll").onclick = clearEverything;
+
+  function setStatus(msg, kind="") {
+    status.textContent = msg;
+    status.className = "status show " + kind;
+  }
+  function setKeyStatus(msg, kind="") {
+    $("keyStatus").textContent = msg;
+    $("keyStatus").className = "status show " + kind;
+  }
+
+  async function loadImage(file) {
+    if (!file || !file.type.startsWith("image/")) return setStatus("Оберіть файл зображення.", "bad");
+    try {
+      const compressed = await compressImage(file);
+      imageDataUrl = compressed.dataUrl;
+      preview.src = imageDataUrl;
+      previewWrap.classList.add("show");
+      resultCard.classList.add("hidden");
+      setStatus(`Фото готове. ${Math.round(compressed.bytes/1024)} KB після стиснення.`, "ok");
+    } catch (e) {
+      setStatus("Не вдалося підготувати фото: " + e.message, "bad");
+    }
+  }
+
+  function compressImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxSide = 2200;
+          const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+          const w = Math.max(1, Math.round(img.naturalWidth * scale));
+          const h = Math.max(1, Math.round(img.naturalHeight * scale));
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          const ctx = c.getContext("2d", { alpha:false });
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = c.toDataURL("image/jpeg", 0.82);
+          URL.revokeObjectURL(url);
+          resolve({dataUrl, bytes: Math.ceil((dataUrl.length * 3) / 4)});
+          c.width = c.height = 1;
+        } catch (e) { URL.revokeObjectURL(url); reject(e); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Некоректне зображення")); };
+      img.src = url;
+    });
+  }
+
+  analyzeBtn.onclick = analyze;
+
+  async function analyze() {
+    const key = apiKey.value.trim();
+    if (!key) return setKeyStatus("Спочатку вставте Gemini API key.", "warn");
+    if (!imageDataUrl) return setStatus("Спочатку додайте фото.", "warn");
+
+    // Current Gemini REST API expects the API key in x-goog-api-key.
+    // Note: new AQ.* authorization tokens are not interchangeable with legacy API keys.
+    if (key.startsWith("AQ.")) {
+      return setKeyStatus("Це схоже на AQ.* authorization token. Для цього однофайлового режиму потрібен Gemini API key, сумісний з x-goog-api-key (зазвичай AIza...).", "bad");
+    }
+
+    analyzeBtn.disabled = true;
+    progress.classList.add("show");
+    bar.style.width = "15%";
+    setStatus("Аналізую фото…", "");
+    resultCard.classList.add("hidden");
+
+    const base64 = imageDataUrl.split(",")[1];
+    const body = {
+      contents: [{
+        role: "user",
+        parts: [
+          { text: `Ти — модуль Document Intelligence.
+Проаналізуй фото документа українською мовою.
+
+Завдання:
+1. Розпізнай друкований і рукописний текст, якщо він читається.
+2. Визнач, чи є таблиця.
+3. Визнач логічні колонки та назви колонок.
+4. Віднови рядки таблиці.
+5. Не вигадуй значення. Якщо символ/значення невпевнене — залиш його максимально близьким до зображення та додай попередження.
+6. Збережи порядок рядків і колонок.
+7. Якщо це не таблиця, сформуй одну колонку "Текст" і кожен логічний рядок зроби окремим рядком.
+8. Для кожної клітинки дай confidence від 0 до 1.
+
+Поверни ТІЛЬКИ JSON за заданою схемою.` },
+          { inline_data: { mime_type: "image/jpeg", data: base64 } }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            documentType: { type:"string", enum:["table","text","mixed","unknown"] },
+            language: { type:"string" },
+            columns: { type:"array", items:{type:"string"} },
+            rows: {
+              type:"array",
+              items:{
+                type:"object",
+                properties:{
+                  values:{type:"array",items:{type:"string"}},
+                  confidence:{type:"array",items:{type:"number"}}
+                },
+                required:["values","confidence"]
+              }
+            },
+            overallConfidence:{type:"number"},
+            warnings:{type:"array",items:{type:"string"}}
+          },
+          required:["documentType","language","columns","rows","overallConfidence","warnings"]
+        }
+      }
+    };
+
+    try {
+      bar.style.width = "35%";
+      const r = await fetch(API_URL, {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "x-goog-api-key":key
+        },
+        body:JSON.stringify(body),
+        cache:"no-store",
+        credentials:"omit"
+      });
+
+      bar.style.width = "70%";
+      const raw = await r.text();
+      if (!r.ok) {
+        let msg = raw;
+        try { msg = JSON.parse(raw)?.error?.message || raw; } catch {}
+        throw new Error(`Gemini ${r.status}: ${msg}`);
+      }
+
+      const payload = JSON.parse(raw);
+      const text = payload?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+      if (!text) throw new Error("Gemini не повернув структурований результат.");
+
+      const parsed = JSON.parse(text);
+      validateResult(parsed);
+      tableData = parsed;
+      renderTable();
+      bar.style.width = "100%";
+      setStatus("Готово. Перевірте жовті клітинки перед експортом.", "ok");
+      resultCard.classList.remove("hidden");
+      window.scrollTo({top:resultCard.offsetTop - 10, behavior:"smooth"});
+    } catch (e) {
+      setStatus(normalizeError(e), "bad");
+    } finally {
+      analyzeBtn.disabled = false;
+      setTimeout(() => { progress.classList.remove("show"); bar.style.width="0"; }, 700);
+      // Release the large base64 string reference after the request.
+      // The preview remains only until the user explicitly clears the photo.
+    }
+  }
+
+  function normalizeError(e) {
+    const s = String(e?.message || e);
+    if (s.includes("401") || s.includes("403")) return "Gemini не прийняв ключ. Перевірте ключ, його обмеження та доступ до Gemini API.";
+    if (s.includes("429")) return "Ліміт Gemini перевищено. Спробуйте пізніше.";
+    if (s.includes("413")) return "Фото/запит завеликий. Спробуйте менше або чіткіше фото.";
+    return s;
+  }
+
+  function validateResult(x) {
+    if (!x || !Array.isArray(x.columns) || !Array.isArray(x.rows)) throw new Error("Некоректна структура відповіді AI.");
+    if (x.columns.length < 1 || x.columns.length > 50) throw new Error("Некоректна кількість колонок.");
+    for (const row of x.rows) {
+      if (!Array.isArray(row.values)) throw new Error("У рядку немає values.");
+      while (row.values.length < x.columns.length) row.values.push("");
+      if (row.values.length > x.columns.length) row.values = row.values.slice(0, x.columns.length);
+      if (!Array.isArray(row.confidence)) row.confidence = [];
+      while (row.confidence.length < x.columns.length) row.confidence.push(1);
+    }
+  }
+
+  function renderTable() {
+    dataTable.innerHTML = "";
+    const thead = document.createElement("thead");
+    const tr = document.createElement("tr");
+    tableData.columns.forEach((c, i) => {
+      const th = document.createElement("th");
+      const inp = document.createElement("input");
+      inp.type="text"; inp.value=c;
+      inp.oninput=()=>tableData.columns[i]=inp.value;
+      th.appendChild(inp); tr.appendChild(th);
+    });
+    const th = document.createElement("th"); th.textContent=""; tr.appendChild(th);
+    thead.appendChild(tr); dataTable.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    tableData.rows.forEach((row, ri) => {
+      const tr=document.createElement("tr");
+      tableData.columns.forEach((_, ci) => {
+        const td=document.createElement("td");
+        const inp=document.createElement("input");
+        inp.type="text"; inp.value=row.values[ci] ?? "";
+        const conf=Number(row.confidence?.[ci] ?? 1);
+        if (conf < .6) inp.classList.add("badcell");
+        else if (conf < .85) inp.classList.add("low");
+        inp.title=`Confidence: ${Math.round(conf*100)}%`;
+        inp.oninput=()=>row.values[ci]=inp.value;
+        td.appendChild(inp); tr.appendChild(td);
+      });
+      const del=document.createElement("button");
+      del.textContent="×"; del.title="Видалити рядок";
+      del.onclick=()=>{tableData.rows.splice(ri,1);renderTable()};
+      const td=document.createElement("td"); td.appendChild(del); tr.appendChild(td);
+      tbody.appendChild(tr);
+    });
+    dataTable.appendChild(tbody);
+
+    const pct=Math.round((Number(tableData.overallConfidence)||0)*100);
+    resultMeta.innerHTML=`<strong>Знайдено:</strong> ${tableData.rows.length} рядків · ${tableData.columns.length} колонок · загальна впевненість ${pct}%`;
+    warnings.innerHTML="";
+    (tableData.warnings||[]).forEach(w=>{
+      const span=document.createElement("span"); span.className="chip"; span.textContent="⚠️ "+w; warnings.appendChild(span);
+    });
+  }
+
+  $("addRow").onclick=()=>{
+    tableData.rows.push({values:tableData.columns.map(()=>""),confidence:tableData.columns.map(()=>0)});
+    renderTable();
+  };
+  $("addCol").onclick=()=>{
+    const name=`Колонка ${tableData.columns.length+1}`;
+    tableData.columns.push(name);
+    tableData.rows.forEach(r=>{r.values.push("");r.confidence.push(0)});
+    renderTable();
+  };
+
+  $("exportCsv").onclick=()=>downloadBlob(makeCsv(), "doc2sheet.csv", "text/csv;charset=utf-8");
+  $("exportXls").onclick=()=>downloadBlob(makeXlsHtml(), "doc2sheet.xls", "application/vnd.ms-excel;charset=utf-8");
+
+  function makeCsv() {
+    const esc=v=>`"${String(v??"").replaceAll('"','""')}"`;
+    const lines=[tableData.columns.map(esc).join(",")];
+    for(const r of tableData.rows) lines.push(r.values.map(esc).join(","));
+    return "\uFEFF"+lines.join("\r\n");
+  }
+
+  // Excel-compatible workbook without external libraries/CDNs.
+  // This is SpreadsheetML/HTML in an .xls container, supported by desktop Excel.
+  function makeXlsHtml() {
+    const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+    let html=`<!doctype html><html><head><meta charset="utf-8"><style>
+      table{border-collapse:collapse}th,td{border:1px solid #777;padding:5px}th{font-weight:bold;background:#eee}
+    </style></head><body><table><thead><tr>`;
+    html += tableData.columns.map(c=>`<th>${esc(c)}</th>`).join("");
+    html += `</tr></thead><tbody>`;
+    for(const r of tableData.rows) html += `<tr>${r.values.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`;
+    return "\uFEFF"+html+"</tbody></table></body></html>";
+  }
+
+  function downloadBlob(content, filename, type) {
+    const blob=new Blob([content],{type});
+    const a=document.createElement("a");
+    const url=URL.createObjectURL(blob);
+    a.href=url;a.download=filename;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  function clearPhoto() {
+    imageDataUrl=null;
+    preview.src="";
+    previewWrap.classList.remove("show");
+    cameraInput.value="";galleryInput.value="";
+  }
+
+  function clearEverything() {
+    clearPhoto();
+    tableData={columns:[],rows:[],confidence:0,warnings:[]};
+    dataTable.innerHTML=""; resultCard.classList.add("hidden");
+    apiKey.value="";
+    setStatus("Сесію очищено.", "ok");
+    // Clear any temporary canvas/DOM state we own.
+    try { window.history.replaceState(null,"",location.href.split("#")[0]); } catch {}
+  }
+
+  window.addEventListener("pagehide", () => {
+    // Best-effort in-memory cleanup. Browsers do not guarantee immediate GC.
+    imageDataUrl=null;
+    tableData={columns:[],rows:[],confidence:0,warnings:[]};
+    apiKey.value="";
+  });
+})();
+</script>
+</body>
+</html>
